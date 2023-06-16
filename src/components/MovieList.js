@@ -1,164 +1,192 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 
 const MovieList = () => {
   const [movies, setMovies] = useState([]);
-  const [filteredMovies, setFilteredMovies] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [selectedMovie, setSelectedMovie] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
   const [searchHistory, setSearchHistory] = useState([]);
+  const [isSearchClicked, setIsSearchClicked] = useState(false);
 
   useEffect(() => {
-    const fetchMovies = async () => {
-      try {
-        const response = await axios.get(
-          'https://api.themoviedb.org/3/movie/upcoming',
-          {
-            params: {
-              api_key: '81f382d33088c6d52099a62eab51d967',
-              language: 'en-US',
-              page: currentPage,
-            },
-          }
-        );
-
-        setMovies(response.data.results);
-        setTotalPages(response.data.total_pages);
-      } catch (error) {
-        console.error('Error fetching movies:', error);
-      }
-    };
-
     fetchMovies();
-  }, [currentPage]);
+  }, [currentPage, selectedLanguage]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [searchText, selectedLanguage, movies]);
+  const fetchMovies = async () => {
+    const baseUrl = 'https://api.themoviedb.org/3/movie/upcoming';
+    const apiKey = '81f382d33088c6d52099a62eab51d967';
+    const language = selectedLanguage !== 'all' ? selectedLanguage : '';
 
-  const applyFilters = () => {
-    const filtered = movies.filter((movie) => {
-      const titleMatch = movie.title.toLowerCase().includes(searchText.toLowerCase());
-      const languageMatch =
-        selectedLanguage === 'all' || movie.original_language === selectedLanguage;
+    const url = `${baseUrl}?api_key=${apiKey}&language=en-US&page=${currentPage}&query=${searchText}${language}`;
 
-      return titleMatch && languageMatch;
-    });
+    const response = await fetch(url);
+    const data = await response.json();
 
-    setFilteredMovies(filtered);
+    setMovies(data.results);
+    setTotalPages(data.total_pages);
   };
 
-  const handleSearch = (event) => {
-    event.preventDefault();
+  const handleSearch = () => {
     setCurrentPage(1);
-    applyFilters();
+    setIsSearchClicked(true);
+    fetchMovies();
     addToSearchHistory();
   };
 
   const addToSearchHistory = () => {
-    const newSearch = {
+    const search = {
+      id: Date.now(),
       title: searchText,
-      language: selectedLanguage === 'all' ? 'All Languages' : selectedLanguage,
+      language: selectedLanguage !== 'all' ? selectedLanguage : 'all',
     };
 
-    setSearchHistory((prevHistory) => [newSearch, ...prevHistory.slice(0, 2)]);
+    setSearchHistory((prevHistory) => [search, ...prevHistory.slice(0, 2)]);
   };
 
-  const handleDeleteSearch = (index) => {
-    setSearchHistory((prevHistory) => prevHistory.filter((_, i) => i !== index));
+  const handleDeleteSearch = (id) => {
+    setSearchHistory((prevHistory) => prevHistory.filter((search) => search.id !== id));
+  };
+
+  const handleLanguageChange = (event) => {
+    setSelectedLanguage(event.target.value);
   };
 
   const handleNextPage = () => {
-    setCurrentPage((prevPage) => {
-      if (prevPage < totalPages) {
-        return prevPage + 1;
-      }
-      return prevPage;
-    });
+    setCurrentPage((prevPage) => prevPage + 1);
   };
 
-  const handlePrevPage = () => {
-    setCurrentPage((prevPage) => {
-      if (prevPage > 1) {
-        return prevPage - 1;
-      }
-      return prevPage;
-    });
+  const handlePreviousPage = () => {
+    setCurrentPage((prevPage) => prevPage - 1);
   };
+
+  const handleMovieClick = (movie) => {
+    setSelectedMovie(movie);
+    setShowDetails(true);
+  };
+
+  const handleCloseDetails = () => {
+    setShowDetails(false);
+  };
+
+  const handleSearchTextChange = (event) => {
+    setSearchText(event.target.value);
+  };
+
+  const filteredMovies = isSearchClicked
+    ? movies.filter((movie) =>
+        movie.title.toLowerCase().includes(searchText.toLowerCase()) &&
+        (selectedLanguage === 'all' || movie.original_language === selectedLanguage)
+      )
+    : movies;
 
   return (
     <div>
-      <h4 style={{color:'#003d66'}}>Apply Filters</h4>
-      <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center' }}>
+      <div>
         <input
           type="text"
-          placeholder="Search by movie title..."
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          style={{height:'30px'}}
+          onChange={handleSearchTextChange}
+          placeholder={'Enter movie title'}
         />
         <select
           value={selectedLanguage}
-          onChange={(e) => setSelectedLanguage(e.target.value)}
-          style={{height:'35px'}}
+          onChange={handleLanguageChange}
         >
-          <option value="all">All Languages</option>
+          <option value="all">All</option>
           <option value="en">English</option>
           <option value="es">Spanish</option>
-          <option value="fi">Finnish</option>
-          <option value="zh">Chinese</option>
-          <option value="fr">Frenchs</option>
-          <option value="ko">Korean</option>
-          <option value="ja">Japanese</option>
+          <option value="fr">French</option>
         </select>
-        <button   
-          style={{height:'35px', backgroundColor:'#003d66', color:'#ffffff'}}
-        
-        type="submit">Search</button>
-      </form>
-      <h3 style={{color:'#006666'}}>Search History</h3>
-      {searchHistory.length === 0 ? (
-        <p style={{ color:'#00e673'}}>No filters applied as yet.</p>
-      ) : (
-        <table style={{backgroundColor:'#00cccc', color:'#ffffff', height:'40px',}}>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Language</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {searchHistory.map((search, index) => (
-              <tr style={{padding:'10px'}} key={index}>
-                <td style={{paddingRight:'10px'}}>{search.title}</td>
-                <td style={{paddingRight:'10px'}}>{search.language}</td>
-                <td>
-                  <button onClick={() => handleDeleteSearch(index)}>Delete</button>
-                </td>
+        <button onClick={handleSearch}>Search</button>
+      </div>
+      <div>
+        <h3 style={{color:'#00331a'}}>Search History</h3>
+        {searchHistory.length > 0 ? (
+          <table>
+            <thead>
+              <tr>
+                <th style={{color:'#00331a'}}>Title</th>
+                <th style={{color:'#00331a'}}>Language</th>
+                <th style={{color:'#00331a'}}>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-<h2 style={{color:'#003d66'}}>Movie List</h2>
-      <ul style={{ listStyle: 'none', padding: 0 , backgroundColor:'#66ccff'}}>
-        {(filteredMovies.length > 0 ? filteredMovies : movies).map((movie) => (
-          <li
-            key={movie.id}
-            style={{ borderBottom: '3px solid white', marginBottom: '1rem' , paddingLeft:'10px'}}
-          >
-            <h3 style={{color:'#ffffff'}}>{movie.title}</h3>
-            <p style={{color:'#ccefff'}}>Language: {movie.original_language}</p>
-          </li>
-        ))}
-      </ul>
+            </thead>
+            <tbody>
+              {searchHistory.map((search) => (
+                <tr key={search.id}>
+                  <td style={{color:'#006633'}}>{search.title}</td>
+                  <td style={{color:'#006633'}}>{search.language}</td>
+                  <td>
+                    <button  style={{backgroundColor:'#006633', color:'#ffffff'}} onClick={() => handleDeleteSearch(search.id)}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No filter applied yet</p>
+        )}
+      </div>
+      <div >
+        <h3 style={{color:'#00331a'}}>Movie List</h3>
+        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+          {filteredMovies.map((movie) => (
+            <div
+              key={movie.id}
+              style={{
+                margin: '10px',
+                padding: '20px',
+                width: '400px',
+                height: '400px',
+                backgroundColor: '#66ffb3',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative',
+              }}
+            >
+              <h2 style={{ textAlign: 'center', marginTop: 0 , color:'#ffffff'}}>{movie.title}</h2>
+              {!showDetails  && (
+                <button
+                  style={{
+                    position: 'absolute',
+                    bottom: '10px',
+                    textAlign: 'center',
+                    backgroundColor: 'white',
+                    padding: '5px',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    backgroundColor:'#00994d', color:'#ffffff'
+                  }}
+                  onClick={() => handleMovieClick(movie)}
+                >
+                  Click here for details
+                </button>
+              )}
+              {showDetails && selectedMovie === movie && (
+                <>
+                  <div>
+                    <p>Vote Average: {movie.vote_average}</p>
+                    <p>Language: {movie.original_language}</p>
+                    <p>Release Date: {movie.release_date}</p>
+                    <p>Overview: {movie.overview}</p>
+                  </div>
+                  <button style={{
+                    
+                    backgroundColor:'#00994d', color:'#ffffff'
+                  }} onClick={handleCloseDetails}>Close</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
       <div>
         {currentPage > 1 && (
-          <button onClick={handlePrevPage}>Previous Page</button>
+          <button onClick={handlePreviousPage}>Previous Page</button>
         )}
         {currentPage < totalPages && (
           <button onClick={handleNextPage}>Next Page</button>
